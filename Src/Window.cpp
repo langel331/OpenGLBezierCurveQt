@@ -4,34 +4,62 @@
 #include "Point.h"
 #include <iostream>
 #include <glm\glm.hpp>
+#include <QtGui\qkeyevent>
+
 
 static const int NUM_OF_SEGMENTS = 60;
 
+Window::Window()
+{
+	pointCount = 0;
+}
 GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
 	// Cubic bezier Curve equation
 	GLfloat point = (pow((1 - t), 3.0) * P0) + (3 * pow((1 - t), 2) * t * P1) + (3 * (1 - t) * t * t * P2) + (pow(t, 3) * P3);
 	return point;
 }
 
+void Window::mousePressEvent(QMouseEvent* event) {
+		//click 4 times to get positions for control points
+	if (event->button() == RI_MOUSE_LEFT_BUTTON_DOWN && pointCount < 4) {
+
+		float glPoint[2];
+		mapTo(event->pos().x(), event->pos().y(), glPoint);
+
+		ctrlPt[pointCount * 3] = glPoint[0];;
+		ctrlPt[pointCount * 3 + 1] = glPoint[1];
+		ctrlPt[pointCount * 3 + 2] = 0.0f;
+
+		std::cout << "(" << ctrlPt[pointCount * 3] << ", " << ctrlPt[pointCount * 3 + 1] << ")\n";
+		pointCount++;
+	}
+
+	if (pointCount == 4) {
+		//system("pause");
+		sendDatatoOpenGL();
+		paintGL();
+	}
+}
+
 void Window::sendDatatoOpenGL(){	
 	//curve segments
 	static const int t = NUM_OF_SEGMENTS;
 	GLfloat curvePts[t * 3];
-	
+
 	// control points
-	Point start(0, -6, -4, 0);
-	Point tan1(1, 2, 6, 0);
-	Point tan2(2, -2, -4, 0);
-	Point end(3, 6, 4, 0);
+	Point start(0, ctrlPt[0], ctrlPt[1], ctrlPt[2]);
+	Point tan1(1, ctrlPt[3], ctrlPt[4], ctrlPt[6]);
+	Point tan2(2, ctrlPt[6], ctrlPt[7], ctrlPt[8]);
+	Point end(3, ctrlPt[9], ctrlPt[10], ctrlPt[11]);
 
 	for (int i = 0; i < t; i++){
 		float position = (float)i / (float)t;
-		GLfloat x = bezierCurve(position, start._x, tan1._x, tan2._x, end._x);
-		GLfloat y = bezierCurve(position, start._y, tan1._y, tan2._y, end._y);
+		x = bezierCurve(position, start._x, tan1._x, tan2._x, end._x);
+		y = bezierCurve(position, start._y, tan1._y, tan2._y, end._y);
 		// In our case, the z should be empty
-		GLfloat z = bezierCurve(position, start._z, tan1._z, tan2._z, end._z);
+		z = bezierCurve(position, start._z, tan1._z, tan2._z, end._z);
 		Point result(4, x, y, z);
-		result.PrintPoint();
+		//result.PrintPoint();
 		curvePts[i * 3] = x;
 		curvePts[i * 3 + 1] = y;
 		curvePts[i * 3 + 2] = z;
@@ -42,7 +70,7 @@ void Window::sendDatatoOpenGL(){
 	glBindVertexArray(vao);
 
 	//declare vertex buffer Id
-	GLuint vertexBufferID;
+	vertexBufferID;
 	//Create vertex buffer
 	glGenBuffers(1, &vertexBufferID);
 	//Bind vertex buffer to vertices
@@ -63,7 +91,7 @@ void Window::sendDatatoOpenGL(){
 		glm::vec3(ptColor[i * 3], ptColor[i * 3 + 1], ptColor[i * 3 + 2]);
 	}
 	//declare color buffer Id
-	GLuint colorBufferID;
+	colorBufferID;
 	//Create color buffer
 	glGenBuffers(1, &colorBufferID);
 	//Bind color buffer to vertices
@@ -183,30 +211,49 @@ void Window::paintGL() {
 	glViewport(0, 0, width(), height());
 	glUseProgram(programID);
 	glBindVertexArray(vao);
-	//glDrawElements(GL_LINE_STRIP, NUM_OF_SEGMENTS* 3, GL_UNSIGNED_SHORT, 0);
 	glDrawArrays(GL_LINE_STRIP, 0, NUM_OF_SEGMENTS);
 	update();
 }
 
 //scales curve to window size
-void Window::resizeGL(int w, int h){
-
+void Window::resizeGL(int w, int h)
+{
 	glViewport(0, 0, (GLsizei)w, (GLsizei)h);
+
+	viewportX = w;
+	viewportY = h;
+
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	// glOrtho scales the matrix by multiplying the matrix
 	if (w <= h) {
-		glOrtho(-5.0, 5.0, -5.0*(GLfloat)h / (GLfloat)w, 5.0*(GLfloat)h / (GLfloat)w, -5.0, 5.0);
+		glOrtho(-5.0, 5.0, -5.0*(GLfloat)h / (GLfloat)w,
+			5.0*(GLfloat)h / (GLfloat)w, -5.0, 5.0);
 	}
 	else {
-		glOrtho(-5.0*(GLfloat)w / (GLfloat)h, 5.0*(GLfloat)w / (GLfloat)h, -5.0, 5.0, -5.0, 5.0);
+		glOrtho(-5.0*(GLfloat)w / (GLfloat)h,
+			5.0*(GLfloat)w / (GLfloat)h, -5.0, 5.0, -5.0, 5.0);
 	}
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 }
 
+void Window::mapTo(int x, int y, float output[2]){
+	const int invertY = viewportY - y;
+	float xMap = (float)x/ (float)viewportX;
+	float yMap = (float)invertY/ (float)viewportY;
+
+	output[0] = xMap * 2.0f - 1.0f;
+	output[1] = yMap * 2.0f - 1.0f;
+}
+
 Window::~Window()
 {
+	//delete buffers
+	glDeleteBuffers(1, &vertexBufferID);
+	glDeleteBuffers(1, &colorBufferID);
+	//stop using the program we created
 	glUseProgram(0);
+	//delete the program we created
 	glDeleteProgram(programID);
 }

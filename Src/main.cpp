@@ -7,8 +7,11 @@
 #include <math.h>
 #include <stdio.h>
 #include "Window.h"
+#include <iostream>
 
 int main(int argc, char** argv) {
+	std::cout << "Click in the window 4 times to select your control points\n";
+
 	// Specifies OpenGL version used
 	QSurfaceFormat format = QSurfaceFormat::defaultFormat();
 	format.setVersion(4, 3);
