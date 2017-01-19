@@ -11,11 +11,13 @@ public:
 	int pointCount;
 	GLuint vertexBufferID;
 	GLuint colorBufferID;
-	GLuint vao;
+	GLuint vertexCtrlPBufferID;
+	GLuint colorCtrlPtBufferID;
+	GLuint vaoCurve;
+	GLuint vaoPoints;
 	GLuint programID;
 	GLfloat ctrlPt[12];
 	void mapTo(int x, int y, float output[2]);
-
 	bool checkShaderStatus(GLuint shaderID);
 	bool checkProgramStatus(GLuint programID);
 	void installShaders();

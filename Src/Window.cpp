@@ -9,10 +9,11 @@
 
 static const int NUM_OF_SEGMENTS = 60;
 
-Window::Window()
-{
+//constructor
+Window::Window(){
 	pointCount = 0;
 }
+
 GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
 	// Cubic bezier Curve equation
 	GLfloat point = (pow((1 - t), 3.0) * P0) + (3 * pow((1 - t), 2) * t * P1) + (3 * (1 - t) * t * t * P2) + (pow(t, 3) * P3);
@@ -31,11 +32,11 @@ void Window::mousePressEvent(QMouseEvent* event) {
 		ctrlPt[pointCount * 3 + 2] = 0.0f;
 
 		std::cout << "(" << ctrlPt[pointCount * 3] << ", " << ctrlPt[pointCount * 3 + 1] << ")\n";
+		
 		pointCount++;
 	}
 
 	if (pointCount == 4) {
-		//system("pause");
 		sendDatatoOpenGL();
 		paintGL();
 	}
@@ -51,7 +52,8 @@ void Window::sendDatatoOpenGL(){
 	Point tan1(1, ctrlPt[3], ctrlPt[4], ctrlPt[6]);
 	Point tan2(2, ctrlPt[6], ctrlPt[7], ctrlPt[8]);
 	Point end(3, ctrlPt[9], ctrlPt[10], ctrlPt[11]);
-
+	
+	//calculate curve points
 	for (int i = 0; i < t; i++){
 		float position = (float)i / (float)t;
 		x = bezierCurve(position, start._x, tan1._x, tan2._x, end._x);
@@ -64,14 +66,12 @@ void Window::sendDatatoOpenGL(){
 		curvePts[i * 3 + 1] = y;
 		curvePts[i * 3 + 2] = z;
 	}
-	//Vertex array object
-	vao;
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
 
-	//declare vertex buffer Id
-	vertexBufferID;
-	//Create vertex buffer
+	//Vertex array object for curve
+	glGenVertexArrays(1, &vaoCurve);
+	glBindVertexArray(vaoCurve);
+
+	//Create vertex buffer for curve points
 	glGenBuffers(1, &vertexBufferID);
 	//Bind vertex buffer to vertices
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferID);
@@ -82,7 +82,7 @@ void Window::sendDatatoOpenGL(){
 	//Describe type  of data to OpenGL
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
 
-	//color array per vertex
+	//color array of curve points
 	GLfloat ptColor[t * 3];
 	for (int i = 0; i < t; i++) {
 		ptColor[i * 3] = 0.0f;
@@ -90,9 +90,8 @@ void Window::sendDatatoOpenGL(){
 		ptColor[i * 3 + 2] = 0.5f;
 		glm::vec3(ptColor[i * 3], ptColor[i * 3 + 1], ptColor[i * 3 + 2]);
 	}
-	//declare color buffer Id
-	colorBufferID;
-	//Create color buffer
+
+	//Create color buffer for curve points
 	glGenBuffers(1, &colorBufferID);
 	//Bind color buffer to vertices
 	glBindBuffer(GL_ARRAY_BUFFER, colorBufferID);
@@ -101,17 +100,47 @@ void Window::sendDatatoOpenGL(){
 	//enable color
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+	//Vertex array object for control points
+	glGenVertexArrays(1, &vaoPoints);
+	glBindVertexArray(vaoPoints);
+
+	//Create vertex buffer for control points
+	glGenBuffers(1, &vertexCtrlPBufferID);
+	//Bind vertex buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vertexCtrlPBufferID);
+	//Define which buffer to bind to vertex array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPt), ctrlPt, GL_STATIC_DRAW);
+	//enable vertex position
+	glEnableVertexAttribArray(0);
+	//Describe type  of data to OpenGL
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	//control point color array
+	
+	GLfloat ctrlPtColor[12];
+	for (int i = 0; i < 4; i++){
+		ctrlPtColor[i * 3] = 0.0f;
+		ctrlPtColor[i * 3 + 1] = 0.0f;
+		ctrlPtColor[i * 3 + 2] = 1.0f;
+		glm::vec3(ctrlPtColor[i * 3], ctrlPtColor[i * 3 + 1], ctrlPtColor[i * 3 + 2]);
+	}
+
+	//Create color buffer for control points
+	glGenBuffers(1, &colorCtrlPtBufferID);
+	//Bind color buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, colorCtrlPtBufferID);
+	//Define which buffer to bind to color array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPtColor), ctrlPtColor, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
 }
 
 //checks if shader file loaded
-std::string readShaderCode(const char*fileName)
-{
+std::string readShaderCode(const char*fileName){
 	//read shader file
 	std::ifstream meInput(fileName);
 
 	//throws error if failed to load
-	if (!meInput.good())
-	{
+	if (!meInput.good()){
 		std::cout << "File failed to load " << fileName;
 		exit(1);
 	}
@@ -210,7 +239,10 @@ void Window::paintGL() {
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	glViewport(0, 0, width(), height());
 	glUseProgram(programID);
-	glBindVertexArray(vao);
+	glBindVertexArray(vaoPoints);
+	glPointSize(4.0f);
+	glDrawArrays(GL_POINTS, 0, 4);
+	glBindVertexArray(vaoCurve);
 	glDrawArrays(GL_LINE_STRIP, 0, NUM_OF_SEGMENTS);
 	update();
 }
@@ -238,6 +270,7 @@ void Window::resizeGL(int w, int h)
 	glLoadIdentity();
 }
 
+//converts pixels to world coordinate
 void Window::mapTo(int x, int y, float output[2]){
 	const int invertY = viewportY - y;
 	float xMap = (float)x/ (float)viewportX;
@@ -247,11 +280,14 @@ void Window::mapTo(int x, int y, float output[2]){
 	output[1] = yMap * 2.0f - 1.0f;
 }
 
+
 Window::~Window()
 {
 	//delete buffers
 	glDeleteBuffers(1, &vertexBufferID);
 	glDeleteBuffers(1, &colorBufferID);
+	glDeleteBuffers(1, &vertexCtrlPBufferID);
+	glDeleteBuffers(1, &colorCtrlPtBufferID);
 	//stop using the program we created
 	glUseProgram(0);
 	//delete the program we created
