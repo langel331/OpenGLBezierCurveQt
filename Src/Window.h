@@ -1,14 +1,15 @@
 #pragma once
 #include <QtOpenGL\qglwidget>
 #include <QtGui\qkeyevent>
-#include "Point.h"
+#include <glm\glm.hpp>
+
 
 class Window : public QGLWidget {
 public:
 	GLfloat x, y, z;
 	int viewportX;
 	int viewportY;
-	int pointCount;
+	int clickCount;
 	GLuint vertexBufferID;
 	GLuint colorBufferID;
 	GLuint vertexCtrlPBufferID;
@@ -16,8 +17,8 @@ public:
 	GLuint vaoCurve;
 	GLuint vaoPoints;
 	GLuint programID;
-	GLfloat ctrlPt[12];
-	void mapTo(int x, int y, float output[2]);
+	glm::vec3 ctrlPt[4];
+	glm::vec2 mapTo(int x, int y);
 	bool checkShaderStatus(GLuint shaderID);
 	bool checkProgramStatus(GLuint programID);
 	void installShaders();

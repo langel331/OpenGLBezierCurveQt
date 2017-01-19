@@ -11,7 +11,7 @@ static const int NUM_OF_SEGMENTS = 60;
 
 //constructor
 Window::Window(){
-	pointCount = 0;
+	clickCount = 0;
 }
 
 GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
@@ -21,37 +21,33 @@ GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
 }
 
 void Window::mousePressEvent(QMouseEvent* event) {
-		//click 4 times to get positions for control points
-	if (event->button() == RI_MOUSE_LEFT_BUTTON_DOWN && pointCount < 4) {
+	//click 4 times to get positions for control points
+	if (event->button() == RI_MOUSE_LEFT_BUTTON_DOWN && clickCount < 4) {
 
-		float glPoint[2];
-		mapTo(event->pos().x(), event->pos().y(), glPoint);
+		//float glPoint[2];
+		glm::vec2 clickPos = mapTo(event->pos().x(), event->pos().y());
 
-		ctrlPt[pointCount * 3] = glPoint[0];;
-		ctrlPt[pointCount * 3 + 1] = glPoint[1];
-		ctrlPt[pointCount * 3 + 2] = 0.0f;
+		ctrlPt[clickCount].x = clickPos.x;
+		ctrlPt[clickCount].y = clickPos.y;
+		ctrlPt[clickCount].z = 0.0f;
 
-		std::cout << "(" << ctrlPt[pointCount * 3] << ", " << ctrlPt[pointCount * 3 + 1] << ")\n";
-		
-		pointCount++;
-	}
-
-	if (pointCount == 4) {
+		std::cout << "(" << ctrlPt[clickCount].x << ", " << ctrlPt[clickCount].y << ")\n";
 		sendDatatoOpenGL();
 		paintGL();
+		clickCount++;
 	}
 }
 
 void Window::sendDatatoOpenGL(){	
 	//curve segments
 	static const int t = NUM_OF_SEGMENTS;
-	GLfloat curvePts[t * 3];
+	glm::vec3 curvePts[t];
 
 	// control points
-	Point start(0, ctrlPt[0], ctrlPt[1], ctrlPt[2]);
-	Point tan1(1, ctrlPt[3], ctrlPt[4], ctrlPt[6]);
-	Point tan2(2, ctrlPt[6], ctrlPt[7], ctrlPt[8]);
-	Point end(3, ctrlPt[9], ctrlPt[10], ctrlPt[11]);
+	Point start(0, ctrlPt[0].x, ctrlPt[0].y, ctrlPt[0].z);
+	Point tan1(1, ctrlPt[1].x, ctrlPt[1].y, ctrlPt[1].z);
+	Point tan2(2, ctrlPt[2].x, ctrlPt[2].y, ctrlPt[2].z);
+	Point end(3, ctrlPt[3].x, ctrlPt[3].y, ctrlPt[3].z);
 	
 	//calculate curve points
 	for (int i = 0; i < t; i++){
@@ -62,9 +58,9 @@ void Window::sendDatatoOpenGL(){
 		z = bezierCurve(position, start._z, tan1._z, tan2._z, end._z);
 		Point result(4, x, y, z);
 		//result.PrintPoint();
-		curvePts[i * 3] = x;
-		curvePts[i * 3 + 1] = y;
-		curvePts[i * 3 + 2] = z;
+		curvePts[i].x = x;
+		curvePts[i].y = y;
+		curvePts[i].z = z;
 	}
 
 	//Vertex array object for curve
@@ -83,12 +79,11 @@ void Window::sendDatatoOpenGL(){
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
 
 	//color array of curve points
-	GLfloat ptColor[t * 3];
+	glm::vec3 ptColor[t];
 	for (int i = 0; i < t; i++) {
-		ptColor[i * 3] = 0.0f;
-		ptColor[i * 3 + 1] = 1.0f;
-		ptColor[i * 3 + 2] = 0.5f;
-		glm::vec3(ptColor[i * 3], ptColor[i * 3 + 1], ptColor[i * 3 + 2]);
+		ptColor[i].x = 0.0f;
+		ptColor[i].y = 1.0f;
+		ptColor[i].z = 0.5f;
 	}
 
 	//Create color buffer for curve points
@@ -117,12 +112,11 @@ void Window::sendDatatoOpenGL(){
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
 	//control point color array
 	
-	GLfloat ctrlPtColor[12];
+	glm::vec3 ctrlPtColor[4];
 	for (int i = 0; i < 4; i++){
-		ctrlPtColor[i * 3] = 0.0f;
-		ctrlPtColor[i * 3 + 1] = 0.0f;
-		ctrlPtColor[i * 3 + 2] = 1.0f;
-		glm::vec3(ctrlPtColor[i * 3], ctrlPtColor[i * 3 + 1], ctrlPtColor[i * 3 + 2]);
+		ctrlPtColor[i].x = 0.0f;
+		ctrlPtColor[i].y = 0.0f;
+		ctrlPtColor[i].z = 1.0f;
 	}
 
 	//Create color buffer for control points
@@ -242,8 +236,11 @@ void Window::paintGL() {
 	glBindVertexArray(vaoPoints);
 	glPointSize(4.0f);
 	glDrawArrays(GL_POINTS, 0, 4);
-	glBindVertexArray(vaoCurve);
-	glDrawArrays(GL_LINE_STRIP, 0, NUM_OF_SEGMENTS);
+
+	if (clickCount == 4) {
+		glBindVertexArray(vaoCurve);
+		glDrawArrays(GL_LINE_STRIP, 0, NUM_OF_SEGMENTS);
+	}
 	update();
 }
 
@@ -271,13 +268,12 @@ void Window::resizeGL(int w, int h)
 }
 
 //converts pixels to world coordinate
-void Window::mapTo(int x, int y, float output[2]){
+glm::vec2 Window::mapTo(int x, int y){
 	const int invertY = viewportY - y;
 	float xMap = (float)x/ (float)viewportX;
 	float yMap = (float)invertY/ (float)viewportY;
 
-	output[0] = xMap * 2.0f - 1.0f;
-	output[1] = yMap * 2.0f - 1.0f;
+	return glm::vec2(xMap * 2.0f - 1.0f, yMap * 2.0f - 1.0f);
 }
 
 
