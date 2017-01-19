@@ -10,6 +10,7 @@ public:
 	int viewportX;
 	int viewportY;
 	int clickCount;
+	glm::vec2 mousePos;
 	GLuint vertexBufferID;
 	GLuint colorBufferID;
 	GLuint vertexCtrlPBufferID;
@@ -28,6 +29,8 @@ public:
 	~Window();
 protected:
 	virtual void initializeGL();
-	void mousePressEvent(QMouseEvent* event);
+	virtual void mousePressEvent(QMouseEvent* event);
+	virtual void mouseMoveEvent(QMouseEvent* event);
+	virtual void mouseReleaseEvent(QMouseEvent* event);
 	virtual void paintGL();
 };

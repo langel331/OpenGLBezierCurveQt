@@ -12,30 +12,59 @@ static const int NUM_OF_SEGMENTS = 60;
 //constructor
 Window::Window(){
 	clickCount = 0;
+	isPtMoving = false;
 }
 
+//returns result of Cubic bezier Curve equation
 GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
-	// Cubic bezier Curve equation
 	GLfloat point = (pow((1 - t), 3.0) * P0) + (3 * pow((1 - t), 2) * t * P1) + (3 * (1 - t) * t * t * P2) + (pow(t, 3) * P3);
 	return point;
 }
 
 void Window::mousePressEvent(QMouseEvent* event) {
-	//click 4 times to get positions for control points
-	if (event->button() == RI_MOUSE_LEFT_BUTTON_DOWN && clickCount < 4) {
-
-		//float glPoint[2];
-		glm::vec2 clickPos = mapTo(event->pos().x(), event->pos().y());
-
-		ctrlPt[clickCount].x = clickPos.x;
-		ctrlPt[clickCount].y = clickPos.y;
+	//mouse position
+	mousePos = mapTo(event->pos().x(), event->pos().y());
+	
+	//click 4 times to assign positions for control points
+	if (event->button() == Qt::LeftButton && clickCount < 4) {
+		
+		ctrlPt[clickCount].x = mousePos.x;
+		ctrlPt[clickCount].y = mousePos.y;
 		ctrlPt[clickCount].z = 0.0f;
 
 		std::cout << "(" << ctrlPt[clickCount].x << ", " << ctrlPt[clickCount].y << ")\n";
 		sendDatatoOpenGL();
-		paintGL();
 		clickCount++;
 	}
+
+}
+
+void Window::mouseMoveEvent(QMouseEvent* event) {
+	//mouse position
+	mousePos = mapTo(event->pos().x(), event->pos().y());
+
+	// update position of existing control point if clicked and dragged
+	if (event->button() == Qt::LeftButton && clickCount == 4) {
+		setMouseTracking(true);
+	}
+
+	float maxDist = 0.1f;
+	if (abs(ctrlPt[0].x - mousePos.x) < maxDist && abs(ctrlPt[0].y - mousePos.y) < maxDist)
+		ctrlPt[0] = glm::vec3(mousePos, 0.0f);
+	else if (abs(ctrlPt[1].x - mousePos.x) < maxDist && abs(ctrlPt[1].y - mousePos.y) < maxDist)
+		ctrlPt[1] = glm::vec3(mousePos, 0.0f);
+	else if (abs(ctrlPt[2].x - mousePos.x) < maxDist && abs(ctrlPt[2].y - mousePos.y) < maxDist)
+		ctrlPt[2] = glm::vec3(mousePos, 0.0f);
+	else if (abs(ctrlPt[3].x - mousePos.x) < maxDist && abs(ctrlPt[3].y - mousePos.y) < maxDist)
+		ctrlPt[3] = glm::vec3(mousePos, 0.0f);
+	else
+		std::cout << "Mouse click was neither near a control point or the curve: (" << mousePos.x << ", " << mousePos.y << ")\n";
+	
+	sendDatatoOpenGL();
+}
+
+void Window::mouseReleaseEvent(QMouseEvent* event) {
+	setMouseTracking(false);
 }
 
 void Window::sendDatatoOpenGL(){	
@@ -276,7 +305,7 @@ glm::vec2 Window::mapTo(int x, int y){
 	return glm::vec2(xMap * 2.0f - 1.0f, yMap * 2.0f - 1.0f);
 }
 
-
+//destructor
 Window::~Window()
 {
 	//delete buffers
