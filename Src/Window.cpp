@@ -8,15 +8,15 @@
 
 
 static const int NUM_OF_SEGMENTS = 60;
+glm::vec3 curvePts[NUM_OF_SEGMENTS];
 
 //constructor
 Window::Window(){
 	clickCount = 0;
-	isPtMoving = false;
 }
 
 //returns result of Cubic bezier Curve equation
-GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
+GLfloat Window::bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
 	GLfloat point = (pow((1 - t), 3.0) * P0) + (3 * pow((1 - t), 2) * t * P1) + (3 * (1 - t) * t * t * P2) + (pow(t, 3) * P3);
 	return point;
 }
@@ -24,6 +24,7 @@ GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
 void Window::mousePressEvent(QMouseEvent* event) {
 	//mouse position
 	mousePos = mapTo(event->pos().x(), event->pos().y());
+	isMousePressed = true;
 	
 	//click 4 times to assign positions for control points
 	if (event->button() == Qt::LeftButton && clickCount < 4) {
@@ -36,12 +37,13 @@ void Window::mousePressEvent(QMouseEvent* event) {
 		sendDatatoOpenGL();
 		clickCount++;
 	}
-
+	sendDatatoOpenGL();
 }
 
 void Window::mouseMoveEvent(QMouseEvent* event) {
 	//mouse position
 	mousePos = mapTo(event->pos().x(), event->pos().y());
+	isMousePressed = true;
 
 	// update position of existing control point if clicked and dragged
 	if (event->button() == Qt::LeftButton && clickCount == 4) {
@@ -58,17 +60,17 @@ void Window::mouseMoveEvent(QMouseEvent* event) {
 	else if (abs(ctrlPt[3].x - mousePos.x) < maxDist && abs(ctrlPt[3].y - mousePos.y) < maxDist)
 		ctrlPt[3] = glm::vec3(mousePos, 0.0f);
 	else
-		std::cout << "Mouse click was neither near a control point or the curve: (" << mousePos.x << ", " << mousePos.y << ")\n";
+		std::cout << "Mouse drag wasn't near a control point: (" << mousePos.x << ", " << mousePos.y << ")\n";
 	
 	sendDatatoOpenGL();
 }
 
 void Window::mouseReleaseEvent(QMouseEvent* event) {
 	setMouseTracking(false);
+	isMousePressed = false;
 }
 
 void Window::sendDatatoOpenGL(){	
-	//curve segments
 	static const int t = NUM_OF_SEGMENTS;
 	glm::vec3 curvePts[t];
 
@@ -77,19 +79,30 @@ void Window::sendDatatoOpenGL(){
 	Point tan1(1, ctrlPt[1].x, ctrlPt[1].y, ctrlPt[1].z);
 	Point tan2(2, ctrlPt[2].x, ctrlPt[2].y, ctrlPt[2].z);
 	Point end(3, ctrlPt[3].x, ctrlPt[3].y, ctrlPt[3].z);
-	
+
 	//calculate curve points
-	for (int i = 0; i < t; i++){
+	for (int i = 0; i < t; i++) {
 		float position = (float)i / (float)t;
 		x = bezierCurve(position, start._x, tan1._x, tan2._x, end._x);
 		y = bezierCurve(position, start._y, tan1._y, tan2._y, end._y);
 		// In our case, the z should be empty
 		z = bezierCurve(position, start._z, tan1._z, tan2._z, end._z);
 		Point result(4, x, y, z);
-		//result.PrintPoint();
+
 		curvePts[i].x = x;
 		curvePts[i].y = y;
 		curvePts[i].z = z;
+	}
+
+	//checks if mouse click hit the curve
+	if (clickCount == 4 && isMousePressed == true) {
+		float maxDist = 0.01f;
+		
+		//computes curve intersection
+		for (int i = 0; i < NUM_OF_SEGMENTS; i++) {
+			if (abs(curvePts[i].x - mousePos.x) < maxDist && abs(curvePts[i].y - mousePos.y) < maxDist)
+				std::cout << "Hit curve segment " << i << " at: (" << curvePts[i].x << ", " << curvePts[i].y << ")\n";
+		}
 	}
 
 	//Vertex array object for curve
@@ -155,6 +168,8 @@ void Window::sendDatatoOpenGL(){
 	//Define which buffer to bind to color array
 	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPtColor), ctrlPtColor, GL_STATIC_DRAW);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+	update();
 }
 
 //checks if shader file loaded
