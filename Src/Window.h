@@ -43,11 +43,11 @@ public:
 	void installShaders();
 	void sendDatatoOpenGL();
 	void  lineIntersection();
-	virtual void initializeGL();
 
 	Window();
 	~Window();
 protected:
+	virtual void initializeGL();
 	virtual void resizeGL(int w, int h);
 	virtual void mousePressEvent(QMouseEvent* event);
 	virtual void mouseMoveEvent(QMouseEvent* event);

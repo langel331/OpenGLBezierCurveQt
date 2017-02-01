@@ -66,8 +66,6 @@ void  Window::lineIntersection() {
 		float yClosestPt = (A*(-B*xBez + A*yBez) - B*C)/(A*A + B*B);
 
 		if (distance < 0.005f) {
-		//if (abs(xLine - xBez) < 0.1f && abs(yLine - yBez) < 0.1f) {
-			//intersect.push_back(glm::vec2(xClosestPt, yClosestPt));
 			if (numberOfHits < NUM_OF_INTERSECTS) {
 				intersect[numberOfHits] = glm::vec2(xClosestPt, yClosestPt);
 				numberOfHits++;
@@ -178,18 +176,23 @@ void Window::sendDatatoOpenGL(){
 	glm::vec3 curvePts[t];
 
 	// control points
-	Point start(0, ctrlPt[0].x, ctrlPt[0].y, ctrlPt[0].z);
-	Point tan1(1, ctrlPt[1].x, ctrlPt[1].y, ctrlPt[1].z);
-	Point tan2(2, ctrlPt[2].x, ctrlPt[2].y, ctrlPt[2].z);
-	Point end(3, ctrlPt[3].x, ctrlPt[3].y, ctrlPt[3].z);
+	//Point start(0, ctrlPt[0].x, ctrlPt[0].y, ctrlPt[0].z);
+	//Point tan1(1, ctrlPt[1].x, ctrlPt[1].y, ctrlPt[1].z);
+	//Point tan2(2, ctrlPt[2].x, ctrlPt[2].y, ctrlPt[2].z);
+	//Point end(3, ctrlPt[3].x, ctrlPt[3].y, ctrlPt[3].z);
+
+	glm::vec3 P0 = glm::vec3(ctrlPt[0].x, ctrlPt[0].y, ctrlPt[0].z);
+	glm::vec3 P1 = glm::vec3(ctrlPt[1].x, ctrlPt[1].y, ctrlPt[1].z);
+	glm::vec3 P2 = glm::vec3(ctrlPt[2].x, ctrlPt[2].y, ctrlPt[2].z);
+	glm::vec3 P3 = glm::vec3(ctrlPt[3].x, ctrlPt[3].y, ctrlPt[3].z);
 
 	//calculate curve points
 	for (int i = 0; i < t; i++) {
 		float position = (float)i / (float)t;
-		x = bezierCurve(position, start._x, tan1._x, tan2._x, end._x);
-		y = bezierCurve(position, start._y, tan1._y, tan2._y, end._y);
+		x = bezierCurve(position, P0.x, P1.x, P2.x, P3.x);
+		y = bezierCurve(position, P0.y, P1.y, P2.y, P3.y);
 		// In our case, the z should be empty
-		z = bezierCurve(position, start._z, tan1._z, tan2._z, end._z);
+		z = bezierCurve(position, P0.z, P1.z, P2.z, P3.z);
 
 		curvePts[i].x = x;
 		curvePts[i].y = y;
@@ -414,7 +417,7 @@ void  Window::initializeGL(){
 	glm::vec3 lineColor[2];
 	for (int i = 0; i < 2; i++) {
 		lineColor[i].x = 1.0f;
-		lineColor[i].y = 1.0f;
+		lineColor[i].y = 0.0f;
 		lineColor[i].z = 0.0f;
 	}
 
@@ -450,7 +453,7 @@ void  Window::initializeGL(){
 	//point color array
 	glm::vec3 interPtColor[3];
 	for (int i = 0; i < 3; i++) {
-		interPtColor[i].x = 0.0f;
+		interPtColor[i].x = 1.0f;
 		interPtColor[i].y = 1.0f;
 		interPtColor[i].z = 0.0f;
 	}
