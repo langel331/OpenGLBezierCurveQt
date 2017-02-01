@@ -302,7 +302,7 @@ void Window::sendDatatoOpenGL(){
 	//Bind vertex buffer to vertices
 	glBindBuffer(GL_ARRAY_BUFFER, vertexInterPtBufferID);
 	//Define which buffer to bind to vertex array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(intersect), &intersect[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, intersect.size()*sizeof(intersect), &intersect[0], GL_STATIC_DRAW);
 	//enable vertex position
 	glEnableVertexAttribArray(0);
 	//Describe type  of data to OpenGL
