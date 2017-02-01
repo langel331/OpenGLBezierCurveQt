@@ -10,23 +10,40 @@ public:
 	int viewportX;
 	int viewportY;
 	int clickCount;
+	int lineClickCount;
 	glm::vec2 mousePos;
 	bool isMousePressed;
-	GLuint vertexBufferID;
-	GLuint colorBufferID;
-	GLuint vertexCtrlPBufferID;
-	GLuint colorCtrlPtBufferID;
-	GLuint vaoCurve;
-	GLuint vaoPoints;
-	GLuint programID;
-	glm::vec3 ctrlPt[4];
-	glm::vec3 curvePts[];
+	
 	GLfloat bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3);
 	glm::vec2 mapTo(int x, int y);
+	GLuint vaoCurve;
+	GLuint vertexBufferID;
+	GLuint colorBufferID;
+
+	glm::vec3 ctrlPt[4];
+	GLuint vaoPoints;
+	GLuint vertexCtrlPtBufferID;
+	GLuint colorCtrlPtBufferID;
+
+	glm::vec3 linePt[2];
+	GLuint vaoLine;
+	GLuint vertexLineBufferID;
+	GLuint colorLineBufferID;
+
+	glm::vec3 interPt[9];
+	std::vector<glm::vec2> hit;
+	std::vector<glm::vec2> intersect;
+	GLuint vaoIntersectPt;
+	GLuint vertexInterPtBufferID;
+	GLuint colorInterPtBufferID;
+
+	GLuint programID;
 	bool checkShaderStatus(GLuint shaderID);
 	bool checkProgramStatus(GLuint programID);
 	void installShaders();
 	void sendDatatoOpenGL();
+	void  lineIntersection();
+
 	Window();
 	~Window();
 protected:

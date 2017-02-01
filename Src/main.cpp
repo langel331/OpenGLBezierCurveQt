@@ -10,7 +10,7 @@
 #include <iostream>
 
 int main(int argc, char** argv) {
-	std::cout << "Click in the window 4 times to select your control points\n";
+	std::cout << "Click in the window 4 times to select your curve control points\n";
 
 	// Specifies OpenGL version used
 	QSurfaceFormat format = QSurfaceFormat::defaultFormat();

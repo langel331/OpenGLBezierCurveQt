@@ -5,38 +5,79 @@
 #include <iostream>
 #include <glm\glm.hpp>
 #include <QtGui\qkeyevent>
+#include <vector>
 
-
-static const int NUM_OF_SEGMENTS = 60;
+static const int NUM_OF_SEGMENTS = 100;
 glm::vec3 curvePts[NUM_OF_SEGMENTS];
 
 //constructor
 Window::Window(){
+	//clickCount = 4 verifies a curve has been created and ensures a line can only be created after a curve
 	clickCount = 0;
+
+	//lineClickCount = 2 verifies a line has been created
+	lineClickCount = 0;
 }
 
-//returns result of Cubic bezier Curve equation
+//returns result of Cubic bezier curve equation
 GLfloat Window::bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat P3) {
 	GLfloat point = (pow((1 - t), 3.0) * P0) + (3 * pow((1 - t), 2) * t * P1) + (3 * (1 - t) * t * t * P2) + (pow(t, 3) * P3);
 	return point;
 }
 
-void Window::mousePressEvent(QMouseEvent* event) {
-	//mouse position
-	mousePos = mapTo(event->pos().x(), event->pos().y());
-	isMousePressed = true;
-	
-	//click 4 times to assign positions for control points
-	if (event->button() == Qt::LeftButton && clickCount < 4) {
-		
-		ctrlPt[clickCount].x = mousePos.x;
-		ctrlPt[clickCount].y = mousePos.y;
-		ctrlPt[clickCount].z = 0.0f;
+//returns intersection between line and curve
+void  Window::lineIntersection() {
+	//starting point of line
+	float x0 = linePt[0].x;
+	float y0 = linePt[0].y;
 
-		std::cout << "(" << ctrlPt[clickCount].x << ", " << ctrlPt[clickCount].y << ")\n";
-		sendDatatoOpenGL();
-		clickCount++;
+	//ending point of line
+	float x1 = linePt[1].x;
+	float y1 = linePt[1].y;
+
+	//line vector
+	glm::vec2 line = glm::vec2(x1-x0, y1-y0);
+
+	float A = y1 - y0;
+	float B = x0 - x1;
+	float C = x0*(y0 - y1) + y0*(x1 - x0);
+
+	int increments = NUM_OF_SEGMENTS;
+
+	for (int i = 0; i < increments; i++) {
+		float t = i / (float)increments;
+
+		//components of bezier equation
+		float xBez = bezierCurve(t, ctrlPt[0].x, ctrlPt[1].x, ctrlPt[2].x, ctrlPt[3].x);
+		float yBez = bezierCurve(t, ctrlPt[0].y, ctrlPt[1].y, ctrlPt[2].y, ctrlPt[3].y);
+
+		//components of parametric line equation
+		float xLine = x0 + t*line.x;
+		float yLine = y0 + t*line.y;
+
+		//float distance = sqrt(pow(xBez - xLine, 2.0f) + pow(yBez - yLine, 2.0f));
+		float distance = abs(A*xBez + B*yBez + C)/pow(A*A + B*B, 0.5f);
+
+		//closest point on curve to line
+		float xClosestPt = (B*(B*xBez - A*yBez) - A*C)/(A*A + B*B);
+		float yClosestPt = (A*(-B*xBez + A*yBez) - B*C)/(A*A + B*B);
+
+		if (distance < 0.005f) {
+		//if (abs(xLine - xBez) < 0.1f && abs(yLine - yBez) < 0.1f) {
+			intersect.push_back(glm::vec2(xClosestPt, yClosestPt));
+		}
 	}
+
+
+	if (intersect.size() > 0 && lineClickCount == 2) {
+		std::cout << "Intersects at: \n";
+		for (int i = 0; i < intersect.size(); i++) {
+			std::cout <<"(" << intersect[i].x << ", " << intersect[i].y << ")\n";
+		}
+	}
+	else if (intersect.size() == 0)
+		std::cout << "There are no intersections\n";
+
 	sendDatatoOpenGL();
 }
 
@@ -46,28 +87,74 @@ void Window::mouseMoveEvent(QMouseEvent* event) {
 	isMousePressed = true;
 
 	// update position of existing control point if clicked and dragged
-	if (event->button() == Qt::LeftButton && clickCount == 4) {
+	if ((event->button() == Qt::LeftButton || event->button() == Qt::RightButton) && clickCount > 3) {
 		setMouseTracking(true);
 	}
+	float mouseMaxDist = 0.1f;
 
-	float maxDist = 0.1f;
-	if (abs(ctrlPt[0].x - mousePos.x) < maxDist && abs(ctrlPt[0].y - mousePos.y) < maxDist)
+	if (abs(ctrlPt[0].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[0].y - mousePos.y) < mouseMaxDist)
 		ctrlPt[0] = glm::vec3(mousePos, 0.0f);
-	else if (abs(ctrlPt[1].x - mousePos.x) < maxDist && abs(ctrlPt[1].y - mousePos.y) < maxDist)
+	else if (abs(ctrlPt[1].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[1].y - mousePos.y) < mouseMaxDist)
 		ctrlPt[1] = glm::vec3(mousePos, 0.0f);
-	else if (abs(ctrlPt[2].x - mousePos.x) < maxDist && abs(ctrlPt[2].y - mousePos.y) < maxDist)
+	else if (abs(ctrlPt[2].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[2].y - mousePos.y) < mouseMaxDist)
 		ctrlPt[2] = glm::vec3(mousePos, 0.0f);
-	else if (abs(ctrlPt[3].x - mousePos.x) < maxDist && abs(ctrlPt[3].y - mousePos.y) < maxDist)
+	else if (abs(ctrlPt[3].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[3].y - mousePos.y) < mouseMaxDist)
 		ctrlPt[3] = glm::vec3(mousePos, 0.0f);
-	else
-		std::cout << "Mouse drag wasn't near a control point: (" << mousePos.x << ", " << mousePos.y << ")\n";
+
+	//update position of line if clicked and dragged
+	if (abs(linePt[0].x - mousePos.x) < mouseMaxDist && abs(linePt[0].y - mousePos.y) < mouseMaxDist)
+		linePt[0] = glm::vec3(mousePos, 0.0f);
+	else if (abs(linePt[1].x - mousePos.x) < mouseMaxDist && abs(linePt[1].y - mousePos.y) < mouseMaxDist)
+		linePt[1] = glm::vec3(mousePos, 0.0f);
 	
+	if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton){
+		intersect.clear();
+		hit.clear();
+	}
+	sendDatatoOpenGL();
+}
+
+void Window::mousePressEvent(QMouseEvent* event) {
+	//mouse position
+	mousePos = mapTo(event->pos().x(), event->pos().y());
+	isMousePressed = true;
+
+	//click 4 times to assign positions for control points
+	if (event->button() == Qt::LeftButton && clickCount < 4) {
+
+		ctrlPt[clickCount].x = mousePos.x;
+		ctrlPt[clickCount].y = mousePos.y;
+		ctrlPt[clickCount].z = 0.0f;
+
+		std::cout << "(" << ctrlPt[clickCount].x << ", " << ctrlPt[clickCount].y << ")\n";
+		sendDatatoOpenGL();
+		clickCount++;
+	}
+
+	//create line after curve is made
+	if (event->button() == Qt::RightButton && clickCount > 3 && lineClickCount < 2) {
+		linePt[lineClickCount].x = mousePos.x;
+		linePt[lineClickCount].y = mousePos.y;
+		linePt[lineClickCount].z = 0.0f;
+
+		sendDatatoOpenGL();
+		lineClickCount++;
+	}
+
+	if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton){
+		intersect.clear();
+		hit.clear();
+	}
+
 	sendDatatoOpenGL();
 }
 
 void Window::mouseReleaseEvent(QMouseEvent* event) {
 	setMouseTracking(false);
 	isMousePressed = false;
+	if (lineClickCount == 2)
+		lineIntersection();
+	sendDatatoOpenGL();
 }
 
 void Window::sendDatatoOpenGL(){	
@@ -87,7 +174,6 @@ void Window::sendDatatoOpenGL(){
 		y = bezierCurve(position, start._y, tan1._y, tan2._y, end._y);
 		// In our case, the z should be empty
 		z = bezierCurve(position, start._z, tan1._z, tan2._z, end._z);
-		Point result(4, x, y, z);
 
 		curvePts[i].x = x;
 		curvePts[i].y = y;
@@ -95,16 +181,50 @@ void Window::sendDatatoOpenGL(){
 	}
 
 	//checks if mouse click hit the curve
-	if (clickCount == 4 && isMousePressed == true) {
+	if (clickCount > 3 && isMousePressed == true) {
 		float maxDist = 0.01f;
 		
-		//computes curve intersection
+		//computes curve intersection with mouse click
 		for (int i = 0; i < NUM_OF_SEGMENTS; i++) {
 			if (abs(curvePts[i].x - mousePos.x) < maxDist && abs(curvePts[i].y - mousePos.y) < maxDist)
-				std::cout << "Hit curve segment " << i << " at: (" << curvePts[i].x << ", " << curvePts[i].y << ")\n";
+				std::cout << "Hit curve at: (" << curvePts[i].x << ", " << curvePts[i].y << ")\n";
 		}
 	}
 
+	//-----------Control Points-------
+	//Vertex array object for control points
+	glGenVertexArrays(1, &vaoPoints);
+	glBindVertexArray(vaoPoints);
+
+	//Create vertex buffer for control points
+	glGenBuffers(1, &vertexCtrlPtBufferID);
+	//Bind vertex buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vertexCtrlPtBufferID);
+	//Define which buffer to bind to vertex array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPt), ctrlPt, GL_STATIC_DRAW);
+	//enable vertex position
+	glEnableVertexAttribArray(0);
+	//Describe type  of data to OpenGL
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	//control point color array
+
+	glm::vec3 ctrlPtColor[4];
+	for (int i = 0; i < 4; i++) {
+		ctrlPtColor[i].x = 0.0f;
+		ctrlPtColor[i].y = 0.0f;
+		ctrlPtColor[i].z = 1.0f;
+	}
+
+	//Create color buffer for control points
+	glGenBuffers(1, &colorCtrlPtBufferID);
+	//Bind color buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, colorCtrlPtBufferID);
+	//Define which buffer to bind to color array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPtColor), ctrlPtColor, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+
+	//-----------Curve-------
 	//Vertex array object for curve
 	glGenVertexArrays(1, &vaoCurve);
 	glBindVertexArray(vaoCurve);
@@ -138,35 +258,69 @@ void Window::sendDatatoOpenGL(){
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
 
-	//Vertex array object for control points
-	glGenVertexArrays(1, &vaoPoints);
-	glBindVertexArray(vaoPoints);
+
+	//-----------Line-------
+	//Vertex array object for line
+	glGenVertexArrays(1, &vaoLine);
+	glBindVertexArray(vaoLine);
 
 	//Create vertex buffer for control points
-	glGenBuffers(1, &vertexCtrlPBufferID);
+	glGenBuffers(1, &vertexLineBufferID);
 	//Bind vertex buffer to vertices
-	glBindBuffer(GL_ARRAY_BUFFER, vertexCtrlPBufferID);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexLineBufferID);
 	//Define which buffer to bind to vertex array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPt), ctrlPt, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(linePt), linePt, GL_STATIC_DRAW);
 	//enable vertex position
 	glEnableVertexAttribArray(0);
 	//Describe type  of data to OpenGL
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-	//control point color array
-	
-	glm::vec3 ctrlPtColor[4];
-	for (int i = 0; i < 4; i++){
-		ctrlPtColor[i].x = 0.0f;
-		ctrlPtColor[i].y = 0.0f;
-		ctrlPtColor[i].z = 1.0f;
+	//line color array
+
+	glm::vec3 lineColor[2];
+	for (int i = 0; i < 2; i++) {
+		lineColor[i].x = 1.0f;
+		lineColor[i].y = 1.0f;
+		lineColor[i].z = 0.0f;
 	}
 
 	//Create color buffer for control points
-	glGenBuffers(1, &colorCtrlPtBufferID);
+	glGenBuffers(1, &colorLineBufferID);
 	//Bind color buffer to vertices
-	glBindBuffer(GL_ARRAY_BUFFER, colorCtrlPtBufferID);
+	glBindBuffer(GL_ARRAY_BUFFER, colorLineBufferID);
 	//Define which buffer to bind to color array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPtColor), ctrlPtColor, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(lineColor), lineColor, GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+
+	//-----------Intersection Points-------
+	//Vertex array object for control points
+	glGenVertexArrays(1, &vaoIntersectPt);
+	glBindVertexArray(vaoIntersectPt);
+
+	//Create vertex buffer for control points
+	glGenBuffers(1, &vertexInterPtBufferID);
+	//Bind vertex buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vertexInterPtBufferID);
+	//Define which buffer to bind to vertex array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(intersect), &intersect[0], GL_STATIC_DRAW);
+	//enable vertex position
+	glEnableVertexAttribArray(0);
+	//Describe type  of data to OpenGL
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	//point color array
+	glm::vec3 interPtColor[3];
+	for (int i = 0; i < 3; i++) {
+		interPtColor[i].x = 0.0f;
+		interPtColor[i].y = 1.0f;
+		interPtColor[i].z = 0.0f;
+	}
+
+	//Create color buffer for points
+	glGenBuffers(1, &colorInterPtBufferID);
+	//Bind color buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, colorInterPtBufferID);
+	//Define which buffer to bind to color array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(interPtColor), interPtColor, GL_STATIC_DRAW);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
 
 	update();
@@ -262,29 +416,42 @@ void Window::installShaders(){
 	}
 }
 
-
 void  Window::initializeGL(){
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glewExperimental = true;
 	glewInit();
-	//glEnable(GL_DEPTH_TEST);
 	sendDatatoOpenGL();
 	installShaders();
 }
 
-//draws curve
+//draws
 void Window::paintGL() {
 	glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 	glViewport(0, 0, width(), height());
 	glUseProgram(programID);
+	
 	glBindVertexArray(vaoPoints);
+	//draw control points
 	glPointSize(4.0f);
 	glDrawArrays(GL_POINTS, 0, 4);
 
-	if (clickCount == 4) {
+	// draw curve after 4 points are defined
+	if (clickCount > 3) {
 		glBindVertexArray(vaoCurve);
 		glDrawArrays(GL_LINE_STRIP, 0, NUM_OF_SEGMENTS);
 	}
+
+	glBindVertexArray(vaoLine);
+	//draw line after curve is drawn
+	glDrawArrays(GL_LINE_STRIP, 0, 2);
+
+	// draw intersects after line
+	if (lineClickCount == 2 && intersect.size() != 0) {
+		glBindVertexArray(vaoIntersectPt);
+		glPointSize(8.0f);
+		glDrawArrays(GL_POINTS, 0, intersect.size());
+	}
+	
 	update();
 }
 
@@ -326,8 +493,12 @@ Window::~Window()
 	//delete buffers
 	glDeleteBuffers(1, &vertexBufferID);
 	glDeleteBuffers(1, &colorBufferID);
-	glDeleteBuffers(1, &vertexCtrlPBufferID);
+	glDeleteBuffers(1, &vertexCtrlPtBufferID);
 	glDeleteBuffers(1, &colorCtrlPtBufferID);
+	glDeleteBuffers(1, &vertexLineBufferID);
+	glDeleteBuffers(1, &colorLineBufferID);
+	glDeleteBuffers(1, &vertexInterPtBufferID);
+	glDeleteBuffers(1, &colorInterPtBufferID);
 	//stop using the program we created
 	glUseProgram(0);
 	//delete the program we created
