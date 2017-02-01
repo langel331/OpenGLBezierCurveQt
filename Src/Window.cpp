@@ -9,7 +9,8 @@
 
 static const int NUM_OF_SEGMENTS = 100;
 glm::vec3 curvePts[NUM_OF_SEGMENTS];
-
+static const int NUM_OF_INTERSECTS = 3;
+static const int NUM_OF_CTRL_PTS = 4;
 //constructor
 Window::Window(){
 	//clickCount = 4 verifies a curve has been created and ensures a line can only be created after a curve
@@ -42,6 +43,8 @@ void  Window::lineIntersection() {
 	float B = x0 - x1;
 	float C = x0*(y0 - y1) + y0*(x1 - x0);
 
+	int numberOfHits = 0;
+
 	int increments = NUM_OF_SEGMENTS;
 
 	for (int i = 0; i < increments; i++) {
@@ -64,7 +67,17 @@ void  Window::lineIntersection() {
 
 		if (distance < 0.005f) {
 		//if (abs(xLine - xBez) < 0.1f && abs(yLine - yBez) < 0.1f) {
-			intersect.push_back(glm::vec2(xClosestPt, yClosestPt));
+			//intersect.push_back(glm::vec2(xClosestPt, yClosestPt));
+			if (numberOfHits < NUM_OF_INTERSECTS) {
+				intersect[numberOfHits] = glm::vec2(xClosestPt, yClosestPt);
+				numberOfHits++;
+			}
+		}
+	}
+
+	if (numberOfHits < NUM_OF_INTERSECTS) {
+		for (int i = numberOfHits; i < NUM_OF_INTERSECTS; i++) {
+			intersect[i] = glm::vec2(1000.0f);
 		}
 	}
 
@@ -107,10 +120,6 @@ void Window::mouseMoveEvent(QMouseEvent* event) {
 	else if (abs(linePt[1].x - mousePos.x) < mouseMaxDist && abs(linePt[1].y - mousePos.y) < mouseMaxDist)
 		linePt[1] = glm::vec3(mousePos, 0.0f);
 	
-	if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton){
-		intersect.clear();
-		hit.clear();
-	}
 	sendDatatoOpenGL();
 }
 
@@ -141,9 +150,16 @@ void Window::mousePressEvent(QMouseEvent* event) {
 		lineClickCount++;
 	}
 
-	if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton){
-		intersect.clear();
-		hit.clear();
+
+	//checks if mouse click hit the curve
+	if (clickCount > 3 && isMousePressed == true) {
+		float maxDist = 0.01f;
+
+		//computes curve intersection with mouse click
+		for (int i = 0; i < NUM_OF_SEGMENTS; i++) {
+			if (abs(curvePts[i].x - mousePos.x) < maxDist && abs(curvePts[i].y - mousePos.y) < maxDist)
+				std::cout << "Hit curve at: (" << curvePts[i].x << ", " << curvePts[i].y << ")\n";
+		}
 	}
 
 	sendDatatoOpenGL();
@@ -180,148 +196,34 @@ void Window::sendDatatoOpenGL(){
 		curvePts[i].z = z;
 	}
 
-	//checks if mouse click hit the curve
-	if (clickCount > 3 && isMousePressed == true) {
-		float maxDist = 0.01f;
-		
-		//computes curve intersection with mouse click
-		for (int i = 0; i < NUM_OF_SEGMENTS; i++) {
-			if (abs(curvePts[i].x - mousePos.x) < maxDist && abs(curvePts[i].y - mousePos.y) < maxDist)
-				std::cout << "Hit curve at: (" << curvePts[i].x << ", " << curvePts[i].y << ")\n";
-		}
-	}
-
-	//-----------Control Points-------
-	//Vertex array object for control points
-	glGenVertexArrays(1, &vaoPoints);
-	glBindVertexArray(vaoPoints);
-
-	//Create vertex buffer for control points
-	glGenBuffers(1, &vertexCtrlPtBufferID);
-	//Bind vertex buffer to vertices
+	//mapping memory from RAM to GPU buffer
+	//control points
 	glBindBuffer(GL_ARRAY_BUFFER, vertexCtrlPtBufferID);
-	//Define which buffer to bind to vertex array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPt), ctrlPt, GL_STATIC_DRAW);
-	//enable vertex position
-	glEnableVertexAttribArray(0);
-	//Describe type  of data to OpenGL
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-	//control point color array
+	void* ctrlPtsGPUPointer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	memcpy(ctrlPtsGPUPointer, ctrlPt, sizeof(ctrlPt));
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	glm::vec3 ctrlPtColor[4];
-	for (int i = 0; i < 4; i++) {
-		ctrlPtColor[i].x = 0.0f;
-		ctrlPtColor[i].y = 0.0f;
-		ctrlPtColor[i].z = 1.0f;
-	}
-
-	//Create color buffer for control points
-	glGenBuffers(1, &colorCtrlPtBufferID);
-	//Bind color buffer to vertices
-	glBindBuffer(GL_ARRAY_BUFFER, colorCtrlPtBufferID);
-	//Define which buffer to bind to color array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPtColor), ctrlPtColor, GL_STATIC_DRAW);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-
-
-	//-----------Curve-------
-	//Vertex array object for curve
-	glGenVertexArrays(1, &vaoCurve);
-	glBindVertexArray(vaoCurve);
-
-	//Create vertex buffer for curve points
-	glGenBuffers(1, &vertexBufferID);
-	//Bind vertex buffer to vertices
+	//curve points
 	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferID);
-	//Define which buffer to bind to vertex array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(curvePts), curvePts, GL_STATIC_DRAW);
-	//enable vertex position
-	glEnableVertexAttribArray(0);
-	//Describe type  of data to OpenGL
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	void* curvePtGPUPointer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	memcpy(curvePtGPUPointer, curvePts, sizeof(curvePts));
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	//color array of curve points
-	glm::vec3 ptColor[t];
-	for (int i = 0; i < t; i++) {
-		ptColor[i].x = 0.0f;
-		ptColor[i].y = 1.0f;
-		ptColor[i].z = 0.5f;
-	}
-
-	//Create color buffer for curve points
-	glGenBuffers(1, &colorBufferID);
-	//Bind color buffer to vertices
-	glBindBuffer(GL_ARRAY_BUFFER, colorBufferID);
-	//Define which buffer to bind to color array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(ptColor), ptColor, GL_STATIC_DRAW);
-	//enable color
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-
-
-	//-----------Line-------
-	//Vertex array object for line
-	glGenVertexArrays(1, &vaoLine);
-	glBindVertexArray(vaoLine);
-
-	//Create vertex buffer for control points
-	glGenBuffers(1, &vertexLineBufferID);
-	//Bind vertex buffer to vertices
+	//line points
 	glBindBuffer(GL_ARRAY_BUFFER, vertexLineBufferID);
-	//Define which buffer to bind to vertex array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(linePt), linePt, GL_STATIC_DRAW);
-	//enable vertex position
-	glEnableVertexAttribArray(0);
-	//Describe type  of data to OpenGL
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-	//line color array
+	void* linePtGPUPointer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	memcpy(linePtGPUPointer, linePt, sizeof(linePt));
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
-	glm::vec3 lineColor[2];
-	for (int i = 0; i < 2; i++) {
-		lineColor[i].x = 1.0f;
-		lineColor[i].y = 1.0f;
-		lineColor[i].z = 0.0f;
-	}
-
-	//Create color buffer for control points
-	glGenBuffers(1, &colorLineBufferID);
-	//Bind color buffer to vertices
-	glBindBuffer(GL_ARRAY_BUFFER, colorLineBufferID);
-	//Define which buffer to bind to color array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(lineColor), lineColor, GL_STATIC_DRAW);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-
-
-	//-----------Intersection Points-------
-	//Vertex array object for control points
-	glGenVertexArrays(1, &vaoIntersectPt);
-	glBindVertexArray(vaoIntersectPt);
-
-	//Create vertex buffer for control points
-	glGenBuffers(1, &vertexInterPtBufferID);
-	//Bind vertex buffer to vertices
+	//intersect points
 	glBindBuffer(GL_ARRAY_BUFFER, vertexInterPtBufferID);
-	//Define which buffer to bind to vertex array
-	glBufferData(GL_ARRAY_BUFFER, intersect.size()*sizeof(intersect), &intersect[0], GL_STATIC_DRAW);
-	//enable vertex position
-	glEnableVertexAttribArray(0);
-	//Describe type  of data to OpenGL
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
-	//point color array
-	glm::vec3 interPtColor[3];
-	for (int i = 0; i < 3; i++) {
-		interPtColor[i].x = 0.0f;
-		interPtColor[i].y = 1.0f;
-		interPtColor[i].z = 0.0f;
-	}
-
-	//Create color buffer for points
-	glGenBuffers(1, &colorInterPtBufferID);
-	//Bind color buffer to vertices
-	glBindBuffer(GL_ARRAY_BUFFER, colorInterPtBufferID);
-	//Define which buffer to bind to color array
-	glBufferData(GL_ARRAY_BUFFER, sizeof(interPtColor), interPtColor, GL_STATIC_DRAW);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	void* intersectPtGPUPointer = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	memcpy(intersectPtGPUPointer, &intersect[0].x, NUM_OF_INTERSECTS * sizeof(glm::vec2));
+	glUnmapBuffer(GL_ARRAY_BUFFER);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	update();
 }
@@ -420,8 +322,151 @@ void  Window::initializeGL(){
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glewExperimental = true;
 	glewInit();
-	sendDatatoOpenGL();
 	installShaders();
+
+	//-----------Control Points-------
+	//Vertex array object for control points
+	glGenVertexArrays(1, &vaoPoints);
+	glBindVertexArray(vaoPoints);
+
+	//Create vertex buffer for control points
+	glGenBuffers(1, &vertexCtrlPtBufferID);
+	//Bind vertex buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vertexCtrlPtBufferID);
+	//Define which buffer to bind to vertex array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPt), ctrlPt, GL_STATIC_DRAW);
+	//enable vertex position
+	glEnableVertexAttribArray(0);
+	//Describe type  of data to OpenGL
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	//control point color array
+
+	glm::vec3 ctrlPtColor[NUM_OF_CTRL_PTS];
+	for (int i = 0; i < NUM_OF_CTRL_PTS; i++) {
+		ctrlPtColor[i].x = 0.0f;
+		ctrlPtColor[i].y = 0.0f;
+		ctrlPtColor[i].z = 1.0f;
+	}
+
+	//Create color buffer for control points
+	glGenBuffers(1, &colorCtrlPtBufferID);
+	//Bind color buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, colorCtrlPtBufferID);
+	//Define which buffer to bind to color array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ctrlPtColor), ctrlPtColor, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+
+	//-----------Curve-------
+	//Vertex array object for curve
+	glGenVertexArrays(1, &vaoCurve);
+	glBindVertexArray(vaoCurve);
+
+	//Create vertex buffer for curve points
+	glGenBuffers(1, &vertexBufferID);
+	//Bind vertex buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vertexBufferID);
+	//Define which buffer to bind to vertex array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(curvePts), curvePts, GL_STATIC_DRAW);
+	//enable vertex position
+	glEnableVertexAttribArray(0);
+	//Describe type  of data to OpenGL
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+	//color array of curve points
+	glm::vec3 ptColor[NUM_OF_SEGMENTS];
+	for (int i = 0; i < NUM_OF_SEGMENTS; i++) {
+		ptColor[i].x = 0.0f;
+		ptColor[i].y = 1.0f;
+		ptColor[i].z = 0.5f;
+	}
+
+	//Create color buffer for curve points
+	glGenBuffers(1, &colorBufferID);
+	//Bind color buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, colorBufferID);
+	//Define which buffer to bind to color array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(ptColor), ptColor, GL_STATIC_DRAW);
+	//enable color
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	//-----------Line-------
+	//Vertex array object for line
+	glGenVertexArrays(1, &vaoLine);
+	glBindVertexArray(vaoLine);
+
+	//Create vertex buffer for control points
+	glGenBuffers(1, &vertexLineBufferID);
+	//Bind vertex buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vertexLineBufferID);
+	//Define which buffer to bind to vertex array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(linePt), linePt, GL_STATIC_DRAW);
+	//enable vertex position
+	glEnableVertexAttribArray(0);
+	//Describe type  of data to OpenGL
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	//line color array
+
+	glm::vec3 lineColor[2];
+	for (int i = 0; i < 2; i++) {
+		lineColor[i].x = 1.0f;
+		lineColor[i].y = 1.0f;
+		lineColor[i].z = 0.0f;
+	}
+
+	//Create color buffer for control points
+	glGenBuffers(1, &colorLineBufferID);
+	//Bind color buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, colorLineBufferID);
+	//Define which buffer to bind to color array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(lineColor), lineColor, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	//-----------Intersection Points-------
+	intersect.resize(NUM_OF_INTERSECTS);
+
+	//Vertex array object for control points
+	glGenVertexArrays(1, &vaoIntersectPt);
+	glBindVertexArray(vaoIntersectPt);
+
+	//Create vertex buffer for control points
+	glGenBuffers(1, &vertexInterPtBufferID);
+	//Bind vertex buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, vertexInterPtBufferID);
+	//Define which buffer to bind to vertex array
+	int intersectBufferSize = intersect.size() * sizeof(glm::vec2);
+	glBufferData(GL_ARRAY_BUFFER, intersectBufferSize, &intersect[0].x, GL_STATIC_DRAW);
+	//enable vertex position
+	glEnableVertexAttribArray(0);
+	//Describe type  of data to OpenGL
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
+	//point color array
+	glm::vec3 interPtColor[3];
+	for (int i = 0; i < 3; i++) {
+		interPtColor[i].x = 0.0f;
+		interPtColor[i].y = 1.0f;
+		interPtColor[i].z = 0.0f;
+	}
+
+	//Create color buffer for points
+	glGenBuffers(1, &colorInterPtBufferID);
+	//Bind color buffer to vertices
+	glBindBuffer(GL_ARRAY_BUFFER, colorInterPtBufferID);
+	//Define which buffer to bind to color array
+	glBufferData(GL_ARRAY_BUFFER, sizeof(interPtColor), interPtColor, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+
+	//unbind all buffers
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 //draws
@@ -446,11 +491,13 @@ void Window::paintGL() {
 	glDrawArrays(GL_LINE_STRIP, 0, 2);
 
 	// draw intersects after line
-	if (lineClickCount == 2 && intersect.size() != 0) {
+	if (lineClickCount == 2) {
 		glBindVertexArray(vaoIntersectPt);
 		glPointSize(8.0f);
 		glDrawArrays(GL_POINTS, 0, intersect.size());
 	}
+
+	glBindVertexArray(0);
 	
 	update();
 }

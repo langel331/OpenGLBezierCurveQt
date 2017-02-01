@@ -7,7 +7,7 @@ out vec3 theColor;
 
 void main()
 {
-	gl_Position = vec4(position, 1.0);
+	vec2 pos = vec2(position.x, position.y);
+	gl_Position = vec4(pos, 0.0, 1.0);
 	theColor = vertexColor;
-	//theColor = vec3(0.0, 1.0, 0.5);
 }
