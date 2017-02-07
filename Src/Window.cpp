@@ -1,16 +1,17 @@
 #include <GL\glew.h>
 #include <fstream>
 #include "Window.h"
-#include "Point.h"
 #include <iostream>
 #include <glm\glm.hpp>
+#include <glm\gtc\constants.hpp>
 #include <QtGui\qkeyevent>
 #include <vector>
 
 static const int NUM_OF_SEGMENTS = 100;
-glm::vec3 curvePts[NUM_OF_SEGMENTS];
+glm::vec2 curvePts[NUM_OF_SEGMENTS];
 static const int NUM_OF_INTERSECTS = 3;
 static const int NUM_OF_CTRL_PTS = 4;
+static const float PI = glm::pi<float>();
 //constructor
 Window::Window(){
 	//clickCount = 4 verifies a curve has been created and ensures a line can only be created after a curve
@@ -26,6 +27,78 @@ GLfloat Window::bezierCurve(float t, GLfloat P0, GLfloat P1, GLfloat P2, GLfloat
 	return point;
 }
 
+float* Window::findCubeRoots(float A, float B, float C, float D) {
+	////https://www.easycalculation.com/algebra/cubic-equation.php	
+	//float q = (3.0f*C - B*B) / 9.0f;
+	//float r = (-27.0f*D + B*(9.0f*C - 2.0f*B*B))/ 54.0f;
+	//float discriminant = pow(q, 3.0f) + r*r;
+	//float r13 = 2.0f*sqrt(abs(q));
+	//float T = r - sqrt(abs(discriminant));
+	//float S = r + sqrt(abs(discriminant));
+	//float term1 = sqrt(3.0f)*((-T + S) / 2.0f);
+	//float t[NUM_OF_INTERSECTS];
+	//
+	////1 real root, 2 complex(disregarded)
+	//if (discriminant < 0.0f) {
+	//	term1 = B / 3.0f;
+	//	t[0] = -term1 + r13 *cos(pow(q, 3.0f)/3.0f);
+	//	t[1], t[2] = 10000.0f; //assign off screen value;
+	//}
+	//
+	////3 real roots (may have double or triple roots)
+	//else {
+	//	t[0] = -term1 + r13 *cos(pow(q, 3.0f) / 3.0f);
+	//	t[1] = -term1 + r13 *cos(pow(q, 3.0f) + 2.0f * PI/ 3.0f);
+	//	t[2] = -term1 + r13 *cos(pow(q, 3.0f) + 4.0f * PI/ 3.0f);
+	//}
+
+	//https://www.particleincell.com/2013/cubic-line-intersection/
+	float a = B / A;
+	float b = C / A;
+	float c = D / A;
+
+	float t[3];
+
+	float Q = (3.0f * b - pow(a, 2.0f)) / 9.0f;
+	float R = (9.0f * a*b - 27.0f * c - 2.0f * pow(a, 3.0f)) / 54.0f;
+
+	//discriminant
+	float discriminant = pow(Q, 3.0f) + pow(R, 2.0f);
+
+	float S;
+	float T;
+	float Im;
+	float th;
+
+	if (discriminant >= 0.0f)										// complex or duplicate roots
+	{
+		S = glm::sign(R + sqrt(discriminant))*pow(abs(R + sqrt(discriminant)), (1.0f / 3.0f));
+		T = glm::sign(R - sqrt(discriminant))*pow(abs(R - sqrt(discriminant)), (1.0f / 3.0f));
+		
+		t[0] = -a / 3.0f + (S + T);                    
+		t[1] = -a / 3.0f - (S + T) / 2.0f;					// real part of complex root
+		t[2] = -a / 3.0f - (S + T) / 2.0f;					// real part of complex root
+		Im = abs(sqrt(3.0f)*(S - T) / 2.0f);				// complex part of root pair   
+
+													
+		if (Im != 0.0f)
+		{
+			//discard complex roots
+			t[1], t[2] = 1000.0f;
+		}
+	}
+	else {                                         //3  distinct real roots
+		th = acos(R / sqrt(-pow(Q, 3.0f)));
+
+		t[0] = 2.0f * sqrt(-Q) * cos(th / 3.0f) - a / 3.0f;
+		t[1] = 2.0f * sqrt(-Q) * cos((th + 2.0f * PI) / 3.0f) - a / 3.0f;
+		t[2] = 2.0f * sqrt(-Q) * cos((th + 4.0f * PI) / 3.0f) - a / 3.0f;
+		Im = 0.0f;							  
+	}
+
+	return t;
+}
+
 //returns intersection between line and curve
 void  Window::lineIntersection() {
 	//starting point of line
@@ -36,61 +109,63 @@ void  Window::lineIntersection() {
 	float x1 = linePt[1].x;
 	float y1 = linePt[1].y;
 
-	//line vector
-	glm::vec2 line = glm::vec2(x1-x0, y1-y0);
+	////line vector
+	//glm::vec2 line = glm::vec2(x1-x0, y1-y0);
 
-	float A = y1 - y0;
-	float B = x0 - x1;
-	float C = x0*(y0 - y1) + y0*(x1 - x0);
+	//coefficients of line equation
+	float a = y1 - y0;
+	float b = x0 - x1;
+	float c = x0*(y0 - y1) + y0*(x1 - x0);
 
-	int numberOfHits = 0;
+	//coefficients of curve
+	glm::vec2 A; // 3rd degree coefficient
+	A.x = -ctrlPt[0].x + 3.0f * ctrlPt[1].x - 3.0f * ctrlPt[2].x + ctrlPt[3].x;
+	A.y = -ctrlPt[0].y + 3.0f * ctrlPt[1].y - 3.0f * ctrlPt[2].y + ctrlPt[3].y;
+	std::cout << "A: " <<A.x << "," << A.y <<"\n";
 
-	int increments = NUM_OF_SEGMENTS;
+	glm::vec2 B; // 2nd degree coefficient
+	B.x = 3.0f * ctrlPt[0].x - 6.0f * ctrlPt[1].x + 3.0f*ctrlPt[2].x;
+	B.y = 3.0f * ctrlPt[0].y - 6.0f * ctrlPt[1].y + 3.0f*ctrlPt[2].y;
+	std::cout << "B: " << B.x << "," << B.y << "\n";
 
-	for (int i = 0; i < increments; i++) {
-		float t = i / (float)increments;
+	glm::vec2 C; // 1st degree coefficient
+	C.x = -3.0f * ctrlPt[0].x + 3.0f*ctrlPt[1].x;
+	C.y = -3.0f * ctrlPt[0].y + 3.0f*ctrlPt[1].y;
+	std::cout << "C: " << C.x << "," << C.y << "\n";
 
-		//components of bezier equation
-		float xBez = bezierCurve(t, ctrlPt[0].x, ctrlPt[1].x, ctrlPt[2].x, ctrlPt[3].x);
-		float yBez = bezierCurve(t, ctrlPt[0].y, ctrlPt[1].y, ctrlPt[2].y, ctrlPt[3].y);
+	glm::vec2 D; //constant
+	D.x = ctrlPt[0].x;
+	D.y = ctrlPt[0].y;
+	std::cout << "D: " << D.x << "," << D.y << "\n";
 
-		//components of parametric line equation
-		float xLine = x0 + t*line.x;
-		float yLine = y0 + t*line.y;
+	//system of equations
+	float P[NUM_OF_CTRL_PTS];
+	P[0] = a*A.x + b*A.y;
+	P[1] = a*B.x + b*B.y;
+	P[2] = a*C.x + b*C.y;
+	P[3] = a*D.x + b*D.y + c;
 
-		//float distance = sqrt(pow(xBez - xLine, 2.0f) + pow(yBez - yLine, 2.0f));
-		float distance = abs(A*xBez + B*yBez + C)/pow(A*A + B*B, 0.5f);
+	float t;
 
-		//closest point on curve to line
-		float xClosestPt = (B*(B*xBez - A*yBez) - A*C)/(A*A + B*B);
-		float yClosestPt = (A*(-B*xBez + A*yBez) - B*C)/(A*A + B*B);
+	for (int i = 0; i < NUM_OF_INTERSECTS; i++) {
 
-		if (distance < 0.005f) {
-			if (numberOfHits < NUM_OF_INTERSECTS) {
-				intersect[numberOfHits] = glm::vec2(xClosestPt, yClosestPt);
-				numberOfHits++;
-			}
+		t = findCubeRoots(P[0], P[1], P[2], P[3])[i];
+
+		if (t< 0 || t > 1.0) {
+			intersect[i].x, intersect[i].y = 1000.0f;
 		}
+		else {
+			intersect[i].x = A.x*t*t*t + B.x*t*t + C.x*t + D.x;
+			intersect[i].y = A.y*t*t*t + B.y*t*t + C.y*t + D.y;
+		}								 
+		std::cout << "Intersects at:  (" << intersect[i].x << ", " << intersect[i].y << ")\n";
+
+		sendDatatoOpenGL();
 	}
 
-	if (numberOfHits < NUM_OF_INTERSECTS) {
-		for (int i = numberOfHits; i < NUM_OF_INTERSECTS; i++) {
-			intersect[i] = glm::vec2(1000.0f);
-		}
-	}
-
-
-	if (intersect.size() > 0 && lineClickCount == 2) {
-		std::cout << "Intersects at: \n";
-		for (int i = 0; i < intersect.size(); i++) {
-			std::cout <<"(" << intersect[i].x << ", " << intersect[i].y << ")\n";
-		}
-	}
-	else if (intersect.size() == 0)
-		std::cout << "There are no intersections\n";
-
-	sendDatatoOpenGL();
+	std::cout << "\n";
 }
+
 
 void Window::mouseMoveEvent(QMouseEvent* event) {
 	//mouse position
@@ -104,19 +179,19 @@ void Window::mouseMoveEvent(QMouseEvent* event) {
 	float mouseMaxDist = 0.1f;
 
 	if (abs(ctrlPt[0].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[0].y - mousePos.y) < mouseMaxDist)
-		ctrlPt[0] = glm::vec3(mousePos, 0.0f);
+		ctrlPt[0] = glm::vec2(mousePos);
 	else if (abs(ctrlPt[1].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[1].y - mousePos.y) < mouseMaxDist)
-		ctrlPt[1] = glm::vec3(mousePos, 0.0f);
+		ctrlPt[1] = glm::vec2(mousePos);
 	else if (abs(ctrlPt[2].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[2].y - mousePos.y) < mouseMaxDist)
-		ctrlPt[2] = glm::vec3(mousePos, 0.0f);
+		ctrlPt[2] = glm::vec2(mousePos);
 	else if (abs(ctrlPt[3].x - mousePos.x) < mouseMaxDist && abs(ctrlPt[3].y - mousePos.y) < mouseMaxDist)
-		ctrlPt[3] = glm::vec3(mousePos, 0.0f);
+		ctrlPt[3] = glm::vec2(mousePos);
 
 	//update position of line if clicked and dragged
 	if (abs(linePt[0].x - mousePos.x) < mouseMaxDist && abs(linePt[0].y - mousePos.y) < mouseMaxDist)
-		linePt[0] = glm::vec3(mousePos, 0.0f);
+		linePt[0] = glm::vec2(mousePos);
 	else if (abs(linePt[1].x - mousePos.x) < mouseMaxDist && abs(linePt[1].y - mousePos.y) < mouseMaxDist)
-		linePt[1] = glm::vec3(mousePos, 0.0f);
+		linePt[1] = glm::vec2(mousePos);
 	
 	sendDatatoOpenGL();
 }
@@ -131,7 +206,6 @@ void Window::mousePressEvent(QMouseEvent* event) {
 
 		ctrlPt[clickCount].x = mousePos.x;
 		ctrlPt[clickCount].y = mousePos.y;
-		ctrlPt[clickCount].z = 0.0f;
 
 		std::cout << "(" << ctrlPt[clickCount].x << ", " << ctrlPt[clickCount].y << ")\n";
 		sendDatatoOpenGL();
@@ -142,22 +216,9 @@ void Window::mousePressEvent(QMouseEvent* event) {
 	if (event->button() == Qt::RightButton && clickCount > 3 && lineClickCount < 2) {
 		linePt[lineClickCount].x = mousePos.x;
 		linePt[lineClickCount].y = mousePos.y;
-		linePt[lineClickCount].z = 0.0f;
 
 		sendDatatoOpenGL();
 		lineClickCount++;
-	}
-
-
-	//checks if mouse click hit the curve
-	if (clickCount > 3 && isMousePressed == true) {
-		float maxDist = 0.01f;
-
-		//computes curve intersection with mouse click
-		for (int i = 0; i < NUM_OF_SEGMENTS; i++) {
-			if (abs(curvePts[i].x - mousePos.x) < maxDist && abs(curvePts[i].y - mousePos.y) < maxDist)
-				std::cout << "Hit curve at: (" << curvePts[i].x << ", " << curvePts[i].y << ")\n";
-		}
 	}
 
 	sendDatatoOpenGL();
@@ -173,31 +234,35 @@ void Window::mouseReleaseEvent(QMouseEvent* event) {
 
 void Window::sendDatatoOpenGL(){	
 	static const int t = NUM_OF_SEGMENTS;
-	glm::vec3 curvePts[t];
+	glm::vec2 curvePts[t];
 
 	// control points
-	//Point start(0, ctrlPt[0].x, ctrlPt[0].y, ctrlPt[0].z);
-	//Point tan1(1, ctrlPt[1].x, ctrlPt[1].y, ctrlPt[1].z);
-	//Point tan2(2, ctrlPt[2].x, ctrlPt[2].y, ctrlPt[2].z);
-	//Point end(3, ctrlPt[3].x, ctrlPt[3].y, ctrlPt[3].z);
-
-	glm::vec3 P0 = glm::vec3(ctrlPt[0].x, ctrlPt[0].y, ctrlPt[0].z);
-	glm::vec3 P1 = glm::vec3(ctrlPt[1].x, ctrlPt[1].y, ctrlPt[1].z);
-	glm::vec3 P2 = glm::vec3(ctrlPt[2].x, ctrlPt[2].y, ctrlPt[2].z);
-	glm::vec3 P3 = glm::vec3(ctrlPt[3].x, ctrlPt[3].y, ctrlPt[3].z);
+	glm::vec2 P0 = glm::vec2(ctrlPt[0].x, ctrlPt[0].y);
+	glm::vec2 P1 = glm::vec2(ctrlPt[1].x, ctrlPt[1].y);
+	glm::vec2 P2 = glm::vec2(ctrlPt[2].x, ctrlPt[2].y);
+	glm::vec2 P3 = glm::vec2(ctrlPt[3].x, ctrlPt[3].y);
 
 	//calculate curve points
 	for (int i = 0; i < t; i++) {
 		float position = (float)i / (float)t;
 		x = bezierCurve(position, P0.x, P1.x, P2.x, P3.x);
 		y = bezierCurve(position, P0.y, P1.y, P2.y, P3.y);
-		// In our case, the z should be empty
-		z = bezierCurve(position, P0.z, P1.z, P2.z, P3.z);
 
 		curvePts[i].x = x;
 		curvePts[i].y = y;
-		curvePts[i].z = z;
 	}
+
+	//checks if mouse click hit the curve
+	if (clickCount > 3 && isMousePressed == true) {
+		float maxDist = 0.01f;
+
+		//computes curve intersection with mouse click
+		for (int i = 0; i < NUM_OF_SEGMENTS; i++) {
+			if (abs(curvePts[i].x - mousePos.x) < maxDist && abs(curvePts[i].y - mousePos.y) < maxDist)
+				std::cout << "Hit curve at: (" << curvePts[i].x << ", " << curvePts[i].y << ")\n";
+		}
+	}
+
 
 	//mapping memory from RAM to GPU buffer
 	//control points
@@ -341,7 +406,7 @@ void  Window::initializeGL(){
 	//enable vertex position
 	glEnableVertexAttribArray(0);
 	//Describe type  of data to OpenGL
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
 	//control point color array
 
 	glm::vec3 ctrlPtColor[NUM_OF_CTRL_PTS];
@@ -375,7 +440,7 @@ void  Window::initializeGL(){
 	//enable vertex position
 	glEnableVertexAttribArray(0);
 	//Describe type  of data to OpenGL
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
 
 	//color array of curve points
 	glm::vec3 ptColor[NUM_OF_SEGMENTS];
@@ -411,7 +476,7 @@ void  Window::initializeGL(){
 	//enable vertex position
 	glEnableVertexAttribArray(0);
 	//Describe type  of data to OpenGL
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, 0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, 0);
 	//line color array
 
 	glm::vec3 lineColor[2];

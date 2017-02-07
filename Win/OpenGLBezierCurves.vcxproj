@@ -15,7 +15,6 @@
     <ClCompile Include="..\Src\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\Src\Point.h" />
     <ClInclude Include="..\Src\Window.h" />
   </ItemGroup>
   <ItemGroup>

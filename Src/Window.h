@@ -6,7 +6,7 @@
 
 class Window : public QGLWidget {
 public:
-	GLfloat x, y, z;
+	GLfloat x, y;
 	int viewportX;
 	int viewportY;
 	int clickCount;
@@ -20,17 +20,17 @@ public:
 	GLuint vertexBufferID;
 	GLuint colorBufferID;
 
-	glm::vec3 ctrlPt[4];
+	glm::vec2 ctrlPt[4];
 	GLuint vaoPoints;
 	GLuint vertexCtrlPtBufferID;
 	GLuint colorCtrlPtBufferID;
 
-	glm::vec3 linePt[2];
+	glm::vec2 linePt[2];
 	GLuint vaoLine;
 	GLuint vertexLineBufferID;
 	GLuint colorLineBufferID;
 
-	glm::vec3 interPt[9];
+	glm::vec2 interPt[9];
 	std::vector<glm::vec2> hit;
 	std::vector<glm::vec2> intersect;
 	GLuint vaoIntersectPt;
@@ -42,7 +42,8 @@ public:
 	bool checkProgramStatus(GLuint programID);
 	void installShaders();
 	void sendDatatoOpenGL();
-	void  lineIntersection();
+	float* findCubeRoots(float A, float B, float C, float D);
+	void lineIntersection();
 
 	Window();
 	~Window();
